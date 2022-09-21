@@ -15,8 +15,42 @@ To assist Zoom users with this migration, we will create an Express.js API from 
 * Implement a custom middleware to check if the token has expired                                           
   * If expired, automatically generate a new token (no user action required)                                
   * If valid (not expired), pull token from Redis to avoid creating a new token for every request
-* Connect with Zoom's REST API's to retrieve data           
-* Run in a docker container via docker-compose                                  
+* Run in a docker container via docker-compose
+* Implement the following API's to connect with Zoom's API's
+
+| Users | Method | Endpoint                      | Description          |
+|-------|--------|-------------------------------|----------------------|
+|       | get    | /api/users                    | list users           |
+|       | post   | /api/users/add                | create users         |
+|       | get    | /api/users/:userId            | get a user           |
+|       | get    | /api/users/:userId/settings   | get user settings    |
+|       | patch  | /api/users/:userId/settings   | update user settings |
+|       | patch  | /api/users/:userId            | update a user        |
+|       | delete | /api/users/:userId            | delete a user        |
+|       | get    | /api/users/:userId/meetings   | list meetings        |
+|       | get    | /api/users/:userId/webinars   | list webinars        |
+|       | get    | /api/users/:userId/recordings | list all recordings  |
+
+| Meetings | Method | Endpoint                                     | Description                       |
+|----------|--------|----------------------------------------------|-----------------------------------|
+|          | get    | /api/meetings/:meetingId                     | get a meeting                     |
+|          | post   | /api/meetings/:userId                        | create a meeting                  |
+|          | patch  | /api/meetings/:meetingId                     | update a meeting                  |
+|          | delete | /api/meetings/:meetingId                     | delete a meeting                  |
+|          | get    | /api/meetings/:meetingId/report/participants | get meeting participation reports |
+|          | delete | /api/meetings/:meetingId/recordings          | delete meeting recordings         |
+
+| Webinars | Method | Endpoint                                     | Description                     |
+|----------|--------|----------------------------------------------|---------------------------------|
+|          | get    | /api/webinars/:webinarId                     | get a webinar                   |
+|          | post   | /api/webinars/:userId                        | create a webinar                |
+|          | delete | /api/webinars/:webinarId                     | delete a webinar                |
+|          | patch  | /api/webinars/:webinarId                     | update a webinar                |
+|          | get    | /api/webinars/:webinarId/registrants         | list webinar registrants        |
+|          | put    | /api/webinars/:webinarId/registrants/status  | update registrant's status      |
+|          | get    | /api/webinars/:webinarId/report/participants | get webinar participant reports |
+|          | post   | /api/webinars/:webinarId/registrants         | add a webinar registrant        |
+
 -------------------------------------------------------------------------------------------------------
 
 Let's get started!
@@ -33,6 +67,9 @@ Let's get started!
       * `View and manage all user meetings /meeting:write:admin`
       * `View users information and manage users /user:write:admin`
       * `View and manage all user Webinars /webinar:write:admin`
+      * `View and manage all user recordings /recording:write:admin`
+      * `View report data /report:read:admin`
+    * If you have access to all of these scopes, great! If not, no problem! Modify them in your application accordingly
   * With these scopes selected, navigate back to **App Credentials** and you should see the following pieces of information
     * `Account ID`
     * `Client ID`
@@ -184,7 +221,6 @@ Fill in our linting file with the following configurations (or whatever configur
 Let's take a look at what our project structure should look like at this stage
 
 ```
-s2s-api
 |-- .env
 |-- .eslintrc.json
 |-- .gitignore
@@ -195,7 +231,6 @@ s2s-api
 For the sake of time, let's go ahead and create the remaining directories at once. Feel free to use the command line or editor of your choice to mimic the following structure. Don't worry, we will cover everything shortly.
 
 ```
-s2s-api
 |-- configs/
 |--|-- redis.js
 |-- constants/
@@ -221,8 +256,11 @@ Let's start building our API!
 
 ## Implementation
 
-*index.js*
+For each file in the project, I will include the **commented code** and a **key takeaways** section to sum up what each file is doing
+
 ```javascript
+// index.js
+
 // gives us access to our Zoom credentials via process.env object
 require('dotenv').config();
 
@@ -294,6 +332,13 @@ process.on('SIGTERM', cleanup);
 process.on('SIGINT', cleanup);
 ```
 
+### Key takeaways from *index.js*
+
+* Setting up our Express application
+* Connecting to redis for token management
+* Defining API routes
+* Incorporating middlewares
+* Graceful shutdown of Express server on exit
 
 
 
