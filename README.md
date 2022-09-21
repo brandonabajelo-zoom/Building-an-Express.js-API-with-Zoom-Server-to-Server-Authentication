@@ -155,6 +155,14 @@ Package versions may differ depending on the time of install, but your *package.
 }
 ```
 
+Inside the "scripts" object, lets add a script that we'll use later to run the app in development mode
+
+```json
+"scripts": {
+ "dev": "nodemon index.js"
+}
+```
+
 NPM has already defined the entrypoint of our application to *index.js* so let's go ahead and create that file
 
 ```bash
@@ -245,9 +253,12 @@ For the sake of time, let's go ahead and create the remaining directories at onc
 |-- utils/
 |--|-- errorHandler.js
 |--|-- token.js
+|-- .dockerignore
 |-- .env
 |-- .eslintrc.json
 |-- .gitignore
+|-- docker-compose.yml
+|-- Dockerfile
 |-- index.js
 |-- package.json
 ```
@@ -256,7 +267,7 @@ Let's start building our API!
 
 ## Implementation
 
-For each file in the project, I will include the **commented code** and **key takeaways** to sum up what each file is doing
+For each file in the project, I will include the **commented code** and a **summary** to explain what each file is doing
 
 #### index.js
 ```javascript
@@ -333,7 +344,7 @@ process.on('SIGTERM', cleanup);
 process.on('SIGINT', cleanup);
 ```
 
-### Key takeaways: *index.js*
+### Summary: *index.js*
 
 * Setting up our Express application
 * Connecting to redis for token management
@@ -355,7 +366,7 @@ const Redis = createClient({ socket: { host: 'redis', port: 6379 } });
 module.exports = Redis;
 ```
 
-### Key takeaways: *configs/redis.js*
+### Summary: *configs/redis.js*
 
 * Creating a redis client in a way where it can be used in various files throughout the application
 * host: redis -> "redis" service name from docker-compose.yml which we will build later
@@ -376,7 +387,7 @@ module.exports = {
 };
 ```
 
-### Key takeaways: *constants/index.js*
+### Summary: *constants/index.js*
 
 * Nothing special happening here, just defining some constants so they can be reused throughout the app easily
 
@@ -401,7 +412,7 @@ const errorHandler = (error, res, customMessage = 'Error') => {
 module.exports = errorHandler;
 ```
 
-### Key takeaways: *utils/errorHandler.js*
+### Summary: *utils/errorHandler.js*
 
 * Error handler we will use for all of our API routes
 * Returns the appropriate error status and error message if available
@@ -463,7 +474,7 @@ module.exports = {
 };
 ```
 
-### Key takeaways *utils/token.js*
+### Summary: *utils/token.js*
 
 * Helper function that retrieves a Zoom Server-to-Server OAuth token
 * Helper function that sets token in Redis with an expiration date
@@ -518,7 +529,7 @@ module.exports = {
 };
 ```
 
-### Key takeaways *middlewares/tokenCheck.js*
+### Summary: *middlewares/tokenCheck.js*
 
 * Arguably the most important file!
 * This middleware function gets applied to all our API routes and checks if a valid token exists in Redis
@@ -528,3 +539,546 @@ module.exports = {
 * In a real world application, you would, of course, want to incorporate user login in front of everything so that only authenticated users of your system get access to these API's.
 
 ***
+
+#### routes/api/users.js
+```javascript
+// routes/api/users.js
+
+const express = require('express');
+const axios = require('axios');
+const qs = require('query-string');
+
+const errorHandler = require('../../utils/errorHandler');
+const { ZOOM_API_BASE_URL } = require('../../constants');
+
+const router = express.Router();
+
+/**
+ * List users
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/users
+ */
+router.get('/', async (req, res) => {
+  const { headerConfig } = req;
+  const { status, next_page_token } = req.query;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/users?${qs.stringify({ status, next_page_token })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, 'Error fetching users');
+  }
+});
+
+/**
+ * Create users
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/userCreate
+ */
+router.post('/add', async (req, res) => {
+  const { headerConfig, body } = req;
+
+  try {
+    const request = await axios.post(`${ZOOM_API_BASE_URL}/users`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, 'Error creating user');
+  }
+});
+
+/**
+ * Get a user
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/user
+ */
+router.get('/:userId', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { userId } = params;
+  const { status } = query;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/users/${userId}?${qs.stringify({ status })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching user: ${userId}`);
+  }
+});
+
+/**
+ * Get user settings
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/userSettings
+ */
+router.get('/:userId/settings', async (req, res) => {
+  const { headerConfig, params } = req;
+  const { userId } = params;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/users/${userId}/settings`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching settings for user: ${userId}`);
+  }
+});
+
+/**
+ * Update user settings
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/userSettingsUpdate
+ */
+router.patch('/:userId/settings', async (req, res) => {
+  const { headerConfig, params, body } = req;
+  const { userId } = params;
+
+  try {
+    const request = await axios.patch(`${ZOOM_API_BASE_URL}/users/${userId}/settings`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error updating settings for user: ${userId}`);
+  }
+});
+
+/**
+ * Update a user
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/userUpdate
+ */
+router.patch('/:userId', async (req, res) => {
+  const { headerConfig, params, body } = req;
+  const { userId } = params;
+
+  try {
+    const request = await axios.patch(`${ZOOM_API_BASE_URL}/users/${userId}`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error updating user: ${userId}`);
+  }
+});
+
+/**
+ * Delete a user
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/userDelete
+ */
+router.delete('/:userId', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { userId } = params;
+  const { action } = query;
+
+  try {
+    const request = await axios.delete(`${ZOOM_API_BASE_URL}/users/${userId}?${qs.stringify({ action })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error deleting user: ${userId}`);
+  }
+});
+
+/**
+ * List meetings
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/meetings
+ */
+router.get('/:userId/meetings', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { userId } = params;
+  const { next_page_token } = query;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/users/${userId}/meetings?${qs.stringify({ next_page_token })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching meetings for user: ${userId}`);
+  }
+});
+
+/**
+ * List webinars
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/webinars
+ */
+router.get('/:userId/webinars', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { userId } = params;
+  const { next_page_token } = query;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/users/${userId}/webinars?${qs.stringify({ next_page_token })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching webinars for user: ${userId}`);
+  }
+});
+
+/**
+ * List all recordings
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/recordingsList
+ */
+router.get('/:userId/recordings', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { userId } = params;
+  const { from, to, next_page_token } = query;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/users/${userId}/recordings?${qs.stringify({
+      from,
+      to,
+      next_page_token,
+    })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching recordings for user: ${userId}`);
+  }
+});
+
+module.exports = router;
+```
+
+#### routes/api/meetings.js
+```javascript
+// routes/api/meetings.js
+const express = require('express');
+const axios = require('axios');
+const qs = require('query-string');
+
+const errorHandler = require('../../utils/errorHandler');
+const { ZOOM_API_BASE_URL } = require('../../constants');
+
+const router = express.Router();
+
+/**
+ * Get a meeting
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/meeting
+ */
+router.get('/:meetingId', async (req, res) => {
+  const { headerConfig, params } = req;
+  const { meetingId } = params;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/meetings/${meetingId}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching meeting: ${meetingId}`);
+  }
+});
+
+/**
+ * Create a meeting
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/meetingCreate
+ */
+router.post('/:userId', async (req, res) => {
+  const { headerConfig, params, body } = req;
+  const { userId } = params;
+
+  try {
+    const request = await axios.post(`${ZOOM_API_BASE_URL}/users/${userId}/meetings`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error creating meeting for user: ${userId}`);
+  }
+});
+
+/**
+ * Update a meeting
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/meetingUpdate
+ */
+router.patch('/:meetingId', async (req, res) => {
+  const { headerConfig, params, body } = req;
+  const { meetingId } = params;
+
+  try {
+    const request = await axios.patch(`${ZOOM_API_BASE_URL}/meetings/${meetingId}`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error updating meeting: ${meetingId}`);
+  }
+});
+
+/**
+ * Delete a meeting
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/meetingDelete
+ */
+router.delete('/:meetingId', async (req, res) => {
+  const { headerConfig, params } = req;
+  const { meetingId } = params;
+
+  try {
+    const request = await axios.delete(`${ZOOM_API_BASE_URL}/meetings/${meetingId}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error deleting meeting: ${meetingId}`);
+  }
+});
+
+/**
+ * Get meeting participant reports
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/reportMeetingParticipants
+ */
+router.get('/:meetingId/report/participants', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { meetingId } = params;
+  const { next_page_token } = query;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/report/meetings/${meetingId}/participants?${qs.stringify({
+      next_page_token,
+    })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching participants for meeting: ${meetingId}`);
+  }
+});
+
+/**
+ * Delete meeting recordings
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/recordingDelete
+ */
+router.delete('/:meetingId/recordings', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { meetingId } = params;
+  const { action } = query;
+
+  try {
+    const request = await axios.delete(`${ZOOM_API_BASE_URL}/meetings/${meetingId}/recordings?${qs.stringify({ action })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error deleting recordings for meeting: ${meetingId}`);
+  }
+});
+
+module.exports = router;
+```
+
+#### *routes/api/webinars.js*
+```javascript
+// routes/api/webinars.js
+
+const express = require('express');
+const axios = require('axios');
+const qs = require('query-string');
+
+const errorHandler = require('../../utils/errorHandler');
+const { ZOOM_API_BASE_URL } = require('../../constants');
+
+const router = express.Router();
+
+/**
+ * Get a webinar
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/webinar
+ */
+router.get('/:webinarId', async (req, res) => {
+  const { headerConfig, params } = req;
+  const { webinarId } = params;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/webinars/${webinarId}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching webinar: ${webinarId}`);
+  }
+});
+
+/**
+ * Create a webinar
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/webinarCreate
+ */
+router.post('/:userId', async (req, res) => {
+  const { headerConfig, body, params } = req;
+  const { userId } = params;
+
+  try {
+    const request = await axios.post(`${ZOOM_API_BASE_URL}/users/${userId}/webinars`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error creating webinar for user: ${userId}`);
+  }
+});
+
+/**
+ * Delete a webinar
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/webinarDelete
+ */
+router.delete('/:webinarId', async (req, res) => {
+  const { headerConfig, params } = req;
+  const { webinarId } = params;
+
+  try {
+    const request = await axios.delete(`${ZOOM_API_BASE_URL}/webinars/${webinarId}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error deleting webinar: ${webinarId}`);
+  }
+});
+
+/**
+ * Update a webinar
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/webinarUpdate
+ */
+router.patch('/:webinarId', async (req, res) => {
+  const { headerConfig, params, body } = req;
+  const { webinarId } = params;
+
+  try {
+    const request = await axios.patch(`${ZOOM_API_BASE_URL}/webinars/${webinarId}`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error updating webinar: ${webinarId}`);
+  }
+});
+
+/**
+ * List webinar registrants
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/webinarRegistrants
+ */
+router.get('/:webinarId/registrants', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { webinarId } = params;
+  const { status, next_page_token } = query;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/webinars/${webinarId}/registrants?${qs.stringify({
+      status,
+      next_page_token,
+    })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching registrants for webinar: ${webinarId}`);
+  }
+});
+
+/**
+ * Update registrant's status
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/webinarRegistrantStatus
+ */
+router.put('/:webinarId/registrants/status', async (req, res) => {
+  const { headerConfig, params, body } = req;
+  const { webinarId } = params;
+
+  try {
+    const request = await axios.put(`${ZOOM_API_BASE_URL}/webinars/${webinarId}/registrants/status`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, 'Error updating webinar registrant status');
+  }
+});
+
+/**
+ * Get webinar participant reports
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/reportWebinarParticipants
+ */
+router.get('/:webinarId/report/participants', async (req, res) => {
+  const { headerConfig, params, query } = req;
+  const { webinarId } = params;
+  const { next_page_token } = query;
+
+  try {
+    const request = await axios.get(`${ZOOM_API_BASE_URL}/report/webinars/${webinarId}/participants?${qs.stringify({
+      next_page_token,
+    })}`, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error fetching webinar participants for webinar: ${webinarId}`);
+  }
+});
+
+/**
+ * Add a webinar registrant
+ * https://marketplace.zoom.us/docs/api-reference/zoom-api/methods/#operation/webinarRegistrantCreate
+ */
+router.post('/:webinarId/registrants', async (req, res) => {
+  const { headerConfig, params, body } = req;
+  const { webinarId } = params;
+
+  try {
+    const request = await axios.post(`${ZOOM_API_BASE_URL}/webinars/${webinarId}/registrants`, body, headerConfig);
+    return res.json(request.data);
+  } catch (err) {
+    return errorHandler(err, res, `Error creating registrant for webinar: ${webinarId}`);
+  }
+});
+
+module.exports = router;
+```
+
+### Summary: *routes/api/users.js*, *routes/api/meetings.js*, *routes/api/webinars.js*
+* Create user, webinar, meeting api routes
+* Note: the headerConfig coming off our request obj (req) -- our middleware provides this
+* Note: for post, put, patch requests, we're just passing the full body payload -- in your application you may choose to validate/parse the body
+
+***
+
+### Docker
+
+At this stage, we've implemented all the business logic of this application! Congrats for making it this far. Lets dockerize the application and run it.
+
+#### *Dockerfile*
+```bash
+FROM node:16-alpine as base
+
+WORKDIR /app
+COPY package*.json /
+EXPOSE 8080
+
+FROM base as dev
+ENV NODE_ENV=development
+RUN npm install -g nodemon && npm install
+COPY . /
+CMD ["nodemon", "index.js"]
+```
+
+***
+
+#### *docker-compose.yml*
+```yml
+version: '3.8'
+
+services:
+  redis:
+    image: redis
+    ports:
+      - '6379:6379'
+
+  dev:
+    build:
+      context: ./
+      target: dev
+    ports:
+      - '8080:8080'
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+      DEBUG: nodejs-docker-express:*
+    depends_on:
+      - redis
+    restart: always
+```
+
+### Summary: *docker-compose.yml*
+* Defined two services for docker to run
+* redis: official docker redis image, the name of the service "redis" is also what we passed into our *configs/redis.js* as the **host** value
+* dev: development instance of our application with hot reloading
+
+#### *.dockerignore*
+```docker
+node_modules
+npm-debug.log
+Dockerfile
+docker-compose*
+.git
+.gitignore
+.env
+.dockerignore
+```
+
+## Run the app
+
+To run the app, ensure Docker Desktop is running first. Then execute the following command to launch our application with hot reloading:
+
+```bash
+s2s-api$ docker-compose up dev
+```
+
+If everything got set up correctly, our API should now be running in a docker container and available to test using Postman! Head over to postman and send a GET request to `localhost:8080/api/users`. 
+
+## Stop the app
+
+```bash
+s2s-api$ docker-compose down
+```
+
+## Congratulations
+
+We have just developed a fully functional Express.js API that automatically handles Zoom Server-to-Server Oauth tokens! The full list of API's can be found at the beginning of this tutorial. I hope you found this useful and happy coding!
