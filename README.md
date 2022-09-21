@@ -1,6 +1,6 @@
 # Building an Express.js API with Zoom Server-to-Server OAuth Authentication
 
-When it comes to building applications on the Zoom platform, Zoom provides a variety of options to best suite your application's needs. 
+When it comes to building applications on the Zoom platform, Zoom provides a variety of options to best suit your application's needs. 
 
 ![Screen Shot 2022-09-20 at 1 20 22 PM](https://user-images.githubusercontent.com/81645097/191358210-fc012523-2bb0-490e-a090-c736b47ee556.png)
 
@@ -256,8 +256,9 @@ Let's start building our API!
 
 ## Implementation
 
-For each file in the project, I will include the **commented code** and a **key takeaways** section to sum up what each file is doing
+For each file in the project, I will include the **commented code** and **key takeaways** to sum up what each file is doing
 
+#### index.js
 ```javascript
 // index.js
 
@@ -332,7 +333,7 @@ process.on('SIGTERM', cleanup);
 process.on('SIGINT', cleanup);
 ```
 
-### Key takeaways from *index.js*
+### Key takeaways: *index.js*
 
 * Setting up our Express application
 * Connecting to redis for token management
@@ -340,9 +341,190 @@ process.on('SIGINT', cleanup);
 * Incorporating middlewares
 * Graceful shutdown of Express server on exit
 
+***
 
+#### configs/redis.js
+```javascript
+// configs/redis.js
 
+const { createClient } = require('redis');
 
+// Socket required for node redis <-> docker-compose connection
+const Redis = createClient({ socket: { host: 'redis', port: 6379 } });
 
+module.exports = Redis;
+```
 
-    
+### Key takeaways: *configs/redis.js*
+
+* Creating a redis client in a way where it can be used in various files throughout the application
+* host: redis -> "redis" service name from docker-compose.yml which we will build later
+* port: default port used by redis, can be changed of course
+
+***
+
+#### constants/index.js
+```javascript
+// constants/index.js
+
+const ZOOM_OAUTH_ENDPOINT = 'https://zoom.us/oauth/token';
+const ZOOM_API_BASE_URL = 'https://api.zoom.us/v2';
+
+module.exports = {
+  ZOOM_OAUTH_ENDPOINT,
+  ZOOM_API_BASE_URL,
+};
+```
+
+### Key takeaways: *constants/index.js*
+
+* Nothing special happening here, just defining some constants so they can be reused throughout the app easily
+
+***
+
+#### utils/errorHandler.js
+```javascript
+// utils/errorHandler.js
+
+/**
+ * @param {*} error object
+ * @param {*} res http response
+ * @param {*} customMessage error message provided by route
+ * @returns error status with message
+ */
+const errorHandler = (error, res, customMessage = 'Error') => {
+  if (!res) return null;
+  const { status, data } = error?.response || {};
+  return res.status(status ?? 500).json({ message: data?.message || customMessage });
+};
+
+module.exports = errorHandler;
+```
+
+### Key takeaways: *utils/errorHandler.js*
+
+* Error handler we will use for all of our API routes
+* Returns the appropriate error status and error message if available
+
+***
+
+#### utils/token.js
+```javascript
+// utils/token.js
+
+const axios = require('axios');
+const qs = require('query-string');
+
+const { ZOOM_OAUTH_ENDPOINT } = require('../constants');
+const redis = require('../configs/redis');
+
+/**
+  * Retrieve token from Zoom API
+  *
+  * @returns {Object} { access_token, expires_in, error }
+  */
+const getToken = async () => {
+  try {
+    const { ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET } = process.env;
+
+    const request = await axios.post(
+      ZOOM_OAUTH_ENDPOINT,
+      qs.stringify({ grant_type: 'account_credentials', account_id: ZOOM_ACCOUNT_ID }),
+      {
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64')}`,
+        },
+      },
+    );
+
+    const { access_token, expires_in } = await request.data;
+
+    return { access_token, expires_in, error: null };
+  } catch (error) {
+    return { access_token: null, expires_in: null, error };
+  }
+};
+
+/**
+  * Set zoom access token with expiration in redis
+  *
+  * @param {Object} auth_object
+  * @param {String} access_token
+  * @param {int} expires_in
+  */
+const setToken = async ({ access_token, expires_in }) => {
+  await redis.set('access_token', access_token);
+  await redis.expire('access_token', expires_in);
+};
+
+module.exports = {
+  getToken,
+  setToken,
+};
+```
+
+### Key takeaways *utils/token.js*
+
+* Helper function that retrieves a Zoom Server-to-Server OAuth token
+* Helper function that sets token in Redis with an expiration date
+
+***
+
+#### middlewares/tokenCheck.js
+```javascript
+// middlewares/tokenCheck.js
+
+const redis = require('../configs/redis');
+const { getToken, setToken } = require('../utils/token');
+
+/**
+  * Middleware that checks if a valid (not expired) token exists in redis
+  * If invalid or expired, generate a new token, set in redis, and append to http request
+  */
+const tokenCheck = async (req, res, next) => {
+  const redis_token = await redis.get('access_token');
+
+  let token = redis_token;
+
+  /**
+    * Redis returns:
+    * -2 if the key does not exist
+    * -1 if the key exists but has no associated expire
+    */
+  if (!redis_token || ['-1', '-2'].includes(redis_token)) {
+    const { access_token, expires_in, error } = await getToken();
+
+    if (error) {
+      const { response, message } = error;
+      return res.status(response?.status || 401).json({ message: `Authentication Unsuccessful: ${message}` });
+    }
+
+    setToken({ access_token, expires_in });
+
+    token = access_token;
+  }
+
+  // append token to request header -- super important!!
+  req.headerConfig = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+  return next();
+};
+
+module.exports = {
+  tokenCheck,
+};
+```
+
+### Key takeaways *middlewares/tokenCheck.js*
+
+* Arguably the most important file!
+* This middleware function gets applied to all our API routes and checks if a valid token exists in Redis
+  * If the token exists, append the token as part of the request header for each route to use
+  * If the token doesn't exist or is expired, automatically generate a new token and set it in redis
+* The idea here is that Zoom authentication is happening automatically without any user interaction
+* In a real world application, you would, of course, want to incorporate user login in front of everything so that only authenticated users of your system get access to these API's.
+
+***
