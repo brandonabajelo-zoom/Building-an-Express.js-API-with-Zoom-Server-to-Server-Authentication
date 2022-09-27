@@ -78,20 +78,20 @@ Let's get started!
   
 ## Getting Started
 
-Let's create a new directory for our project and begin setting up
+Let's create a new directory for our project and begin setting up.
 
 ```bash
 $ mkdir s2s-api
 $ cd s2s-api
 ```
 
-Inside our new project, let's initialize our project with **npm** to create a *package.json* file with all the default options (-y)
+Inside our new project, let's initialize our project with **npm** to create a *package.json* file with all the default options (-y).
 
 ```bash
 s2s-api$ npm init -y
 ```
 
-This should create an empty *package.json* file like
+This should create an empty *package.json* file like:
 
 ```json
 {
@@ -108,7 +108,7 @@ This should create an empty *package.json* file like
 }
 ```
 
-Now let's go ahead and populate our *package.json* with the packages we'll need
+Now let's go ahead and populate our *package.json* with the packages we'll need.
 
 **Core Dependencies**
 ```bash
@@ -120,11 +120,11 @@ s2s-api$ npm i axios cors dotenv express query-string redis
 s2s-api$ npm i -D eslint eslint-config-airbnb-base eslint-plugin-import nodemon
 ```
 
-If any of these packages look foreign to you, please take a minute to look them up individually
+If any of these packages look foreign to you, please take a minute to look them up individually.
 
-**Note**: eslint dependencies are optional, however, I would recommend following some set of linting rules to maintain code structure and readability
+**Note**: eslint dependencies are optional, however, I would recommend following some set of linting rules to maintain code structure and readability.
 
-Package versions may differ depending on the time of install, but your *package.json* should now look something like
+Package versions may differ depending on the time of install, but your *package.json* should now look something like:
 
 ```json
 {
@@ -155,7 +155,7 @@ Package versions may differ depending on the time of install, but your *package.
 }
 ```
 
-Inside the "scripts" object, lets add a script that we'll use later to run the app in development mode
+Inside the "scripts" object, lets add a script that we'll use later to run the app in development mode.
 
 ```json
 "scripts": {
@@ -163,19 +163,19 @@ Inside the "scripts" object, lets add a script that we'll use later to run the a
 }
 ```
 
-NPM has already defined the entrypoint of our application to *index.js* so let's go ahead and create that file
+NPM has already defined the entrypoint of our application to *index.js* so let's go ahead and create that file.
 
 ```bash
 s2s-api$ touch index.js
 ```
 
-Create a *.env* file at the top level of the directory to hold our Zoom credentials
+Create a *.env* file at the top level of the directory to hold our Zoom credentials.
 
 ```bash
 s2s-api$ touch .env
 ```
 
-Fill in the following values
+Fill in the following values.
 
 ```text
 ZOOM_ACCOUNT_ID=
@@ -183,13 +183,13 @@ ZOOM_CLIENT_ID=
 ZOOM_CLIENT_SECRET=
 ```
 
-**Note**: we never want our credentials to be exposed online, so let's go ahead and add our *.env* to a *.gitignore* file
+**Note**: we never want our credentials to be exposed online, so let's go ahead and add our *.env* to a *.gitignore* file.
 
 ```bash
 s2s-api$ touch .gitignore
 ```
 
-Inside our *.gitignore*, add the following values to ensure we're not tracking node_modules and user credentials
+Inside our *.gitignore*, add the following values to ensure we're not tracking node_modules and user credentials.
 
 ```text
 node_modules
@@ -198,13 +198,13 @@ node_modules
 
 **Note**: If you opted out of using a linter, feel free to skip this next step
 
-Create a *.eslintrc.json* at the top level of the directory
+Create a *.eslintrc.json* at the top level of the directory.
 
 ```bash
 s2s-api$ touch .eslintrc.json
 ```
 
-Fill in our linting file with the following configurations (or whatever configurations suit you)
+Fill in our linting file with the following configurations (or whatever configurations suit you).
 
 ```json
 {
@@ -226,7 +226,7 @@ Fill in our linting file with the following configurations (or whatever configur
 }
 ```
 
-Let's take a look at what our project structure should look like at this stage
+Let's take a look at what our project structure should look like at this stage.
 
 ```
 |-- .env
@@ -236,7 +236,7 @@ Let's take a look at what our project structure should look like at this stage
 |-- package.json
 ```
 
-For the sake of time, let's go ahead and create the remaining directories at once. Feel free to use the command line or editor of your choice to mimic the following structure. Don't worry, we will cover everything shortly.
+For the sake of time, let's go ahead and create the remaining directories at once. Feel free to use the command line or editor of your choice to mimic the following structure. Don't worry, we will cover every file individually later.
 
 ```
 |-- configs/
@@ -267,7 +267,7 @@ Let's start building our API!
 
 ## Implementation
 
-For each file in the project, I will include the **commented code** and a **summary** to explain what each file is doing
+For each file in the project, I will include the **commented code** and a **summary** to explain what each file is doing.
 
 #### index.js
 ```javascript
