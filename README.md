@@ -4,7 +4,7 @@ When it comes to building applications on the Zoom platform, Zoom provides a var
 
 ![Screen Shot 2022-09-20 at 1 20 22 PM](https://user-images.githubusercontent.com/81645097/191358210-fc012523-2bb0-490e-a090-c736b47ee556.png)
 
-If you take a second to glance over the various app types listed above, you'll see that we are deprecating **JWT** apps in favor of the newly added **Server-to-Server OAuth** app type. This deprecation will take place **June, 2023**. If you're interested to read more about why we're doing this, please see our [JWT Deprecation FAQ](https://marketplace.zoom.us/docs/guides/build/jwt-app/jwt-faq/).
+If you take a second to glance over the various app types listed above, you'll see that we are deprecating **JWT** apps in favor of the newly added **Server-to-Server OAuth** app type. This deprecation will take place **June, 2023**. If you're interested in reading more about why we're doing this, please see our [JWT Deprecation FAQ](https://marketplace.zoom.us/docs/guides/build/jwt-app/jwt-faq/).
 
 To assist Zoom users with this migration, we will create an Express.js API from scratch and integrate it with Zoom via Server-to-Server OAuth. This application will:
 
@@ -69,7 +69,7 @@ Let's get started!
       * `View and manage all user Webinars /webinar:write:admin`
       * `View and manage all user recordings /recording:write:admin`
       * `View report data /report:read:admin`
-    * If you have access to all of these scopes, great! If not, no problem! Modify them in your application accordingly
+    * If you have access to all of these scopes, great! If not, no problem! Modify the API's in your application accordingly.
   * With these scopes selected, navigate back to **App Credentials** and you should see the following pieces of information
     * `Account ID`
     * `Client ID`
@@ -368,9 +368,9 @@ module.exports = Redis;
 
 ### Summary: *configs/redis.js*
 
-* Creating a redis client in a way where it can be used in various files throughout the application
-* host: redis -> "redis" service name from docker-compose.yml which we will build later
-* port: default port used by redis, can be changed of course
+* Creating a redis client in a way where it can be used in various files throughout the application.
+* host: redis -> "redis" service name from docker-compose.yml which we will build later.
+* port: default port used by redis, can be changed of course.
 
 ***
 
@@ -389,7 +389,7 @@ module.exports = {
 
 ### Summary: *constants/index.js*
 
-* Nothing special happening here, just defining some constants so they can be reused throughout the app easily
+* Nothing special happening here, we are just defining some constants so they can be reused throughout the app easily.
 
 ***
 
@@ -414,8 +414,8 @@ module.exports = errorHandler;
 
 ### Summary: *utils/errorHandler.js*
 
-* Error handler we will use for all of our API routes
-* Returns the appropriate error status and error message if available
+* Error handler we will use for all of our API routes.
+* Returns the appropriate error status and error message if available.
 
 ***
 
@@ -476,8 +476,8 @@ module.exports = {
 
 ### Summary: *utils/token.js*
 
-* Helper function that retrieves a Zoom Server-to-Server OAuth token
-* Helper function that sets token in Redis with an expiration date
+* Helper function that retrieves a Zoom Server-to-Server OAuth token.
+* Helper function that sets token in Redis with an expiration date.
 
 ***
 
@@ -532,13 +532,15 @@ module.exports = {
 ### Summary: *middlewares/tokenCheck.js*
 
 * Arguably the most important file!
-* This middleware function gets applied to all our API routes and checks if a valid token exists in Redis
-  * If the token exists, append the token as part of the request header for each route to use
-  * If the token doesn't exist or is expired, automatically generate a new token and set it in redis
-* The idea here is that Zoom authentication is happening automatically without any user interaction
+* This middleware function gets applied to all our API routes and checks if a valid token exists in Redis.
+  * If the token exists, append the token as part of the request header for each route to use.
+  * If the token doesn't exist or is expired, automatically generate a new token and set it in redis.
+* The idea here is that Zoom authentication is happening automatically without any user interaction.
 * In a real world application, you would, of course, want to incorporate user login in front of everything so that only authenticated users of your system get access to these API's.
 
 ***
+
+## API Routes -- the success of these endpoints depends on the scopes you selected at the beginning. If you don't have all the required scopes available to you, simply omit the endpoints that fall under that scope.
 
 #### routes/api/users.js
 ```javascript
@@ -991,9 +993,9 @@ module.exports = router;
 ```
 
 ### Summary: *routes/api/users.js*, *routes/api/meetings.js*, *routes/api/webinars.js*
-* Create user, webinar, meeting api routes
-* Note: the headerConfig coming off our request obj (req) -- our middleware provides this
-* Note: for post, put, patch requests, we're just passing the full body payload -- in your application you may choose to validate/parse the body
+* Create user, webinar, meeting api routes.
+* Note: the headerConfig coming off our request obj (req) -- our middleware provides this.
+* Note: for post, put, patch requests, we're just passing the full body payload to Zoom -- in your application you may choose to validate/parse the body before submitting to Zoom.
 
 ***
 
@@ -1047,9 +1049,9 @@ services:
 ```
 
 ### Summary: *docker-compose.yml*
-* Defined two services for docker to run
-* redis: official docker redis image, the name of the service "redis" is also what we passed into our *configs/redis.js* as the **host** value
-* dev: development instance of our application with hot reloading
+* Defined two services for docker to run.
+* redis: official docker redis image, the name of the service "redis" is also what we passed into our *configs/redis.js* as the **host** value.
+* dev: development instance of our application with hot reloading.
 
 #### *.dockerignore*
 ```docker
